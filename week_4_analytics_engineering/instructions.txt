@@ -1,0 +1,129 @@
+Fact Table : Corresponde ao processo de negócio, "verbos" (sales, orders)
+metrics, facts or measurements
+
+Dimensions Table: business entity, dá contexto ao processo do negócio, "substantivos"
+(customer, product etc)
+
+Kitchen analogy:
+
+Back stage: contem o dado bruto (raw data), ninguém vê
+Processing area: raw data para data models, foco em eficiência, garante padrões
+dos dados
+Presentation area: Apresentação final do dado, expõe à empresa
+
+O QUE É DBT:
+
+O dbt é uma ferramenta de transformação de dados que permite aos profissionais de
+engenharia de analytics operarem as informações usando SQL, além de facilitar
+e organizar o ambiente de construção do DW.
+
+dbt models
+
+Para rodar um modelo deve-se digitar dbt run -m nome_do_macro
+Para rodar um modelo com select, deve-se digitar dbt run --select stg_green_tripdata.sql
+
+MACRO
+
+Macro retorna o código da função, por exemplo, se fizéssemos uma função para concatenar
+"a" e "b" no python, ela retornaria "a" + "b" concatenados, no dbt ele vai retornaria
+o código para obter a concatenação de "a" e "b".
+
+    {# This macro returns the description of the payment type #}
+
+{% macro get_payment_type_description(payment_type)%}
+
+    case {{ payment_type }}
+        when 1 then 'Credit Card'
+        when 2 then 'Cash'
+        when 3 then 'No charge'
+        when 4 then 'Dispute'
+        when 5 then 'Unknown'
+        when 6 then 'Voided trip'
+    end
+
+{% endmacro %}
+
+Ao entrar na pasta "target" e procurar o modelo rodado, você verá que o código foi
+transformado em código de SQL puro com a função integrada.
+
+PACKAGES
+
+Seria como o libraries do python. Para baixar um package, deve-se criar um arquivo
+"packages.yml" e nele escrever os seguinte código:
+
+packages:
+  - package: dbt-labs/dbt_utils
+    version: 0.8.0
+
+Dar run no seguinte comando: "dbt deps"
+
+Será criada uma pasta dbt_packages e dentro dela estará o package.
+Para chamar um macro do package, deve-se seguir o código abaixo dentro do macro desejado:
+
+{{ dbt_utils.surrogate_key{['vendorid','lpep_pickup_datetime']} }} as tripid
+
+ou seja
+
+{{ nome_do_package.nome_do_macro{['parâmetro_1','parâmetro_2', ...]} }} as nome_qualquer
+
+
+VARIÁVEIS
+
+Podem ser colocadas ou no dbt_project.yml file ou na linha de comando ao executar
+o modelo.
+
+Escrever no meio do código a seguinte função:
+
+{% if var('is_test_run, default = True) %}
+  LIMIT 100
+{% endif %}
+
+Ou seja, se rodar:
+
+dbt run --select stg_green_tripdata
+
+Vai rodar com a varíavel com o default valor. Porém, se rodarmos:
+
+dbt run --select stg_green_tripdata --var 'is_test_run: false'
+
+Considera-se a variável 'is_test_run' como Falsa e não mostrará limit 100
+
+DBT SEED
+
+Seeds são usados para armazenar arquivos CSV que não são mudados constantemente.
+Por exemplo um csv para DexPara (lookup)
+
+Podem ser feitos os uploads de algumas formas:
+Se for o local basta copiar e colar dentro da pasta seeds, caso contrário, ou
+cria-se um arquivo dentro do cloud, ou faz upload no github e da pull nele.
+
+Após criar a tabela dentro da pasta seed, deve-se rodar o comando "dbt seed".
+
+TESTS:
+
+É possível criar testes dentro de cada modelo, por exemplo, digamos que quero criar
+um modelo para o modelo 'dim_zones.sql'. Para isso, dentro da pasta onde está o modelo,
+cria-se um arquivo schema.yml e nele digita-se
+
+models:
+  - name: dim_zones
+    description: Aqui escreve-se uma descrição do modelo
+    columns:
+      - name: locationid (aqui escrevemos o nome da coluna em que será feito o teste)
+        description: escreve-se uma descrição da coluna
+        tests:
+            - not_null:
+                severity: error
+
+Ou seja, se ele encontrar um valor de location_id nulo, será alertado um erro.
+Para rodar o teste deve-se colocar:
+
+dbt test (roda todos os testes)
+dbt test --select model_name
+
+DBT JOBS
+
+Cria-se um  enviroment para rodar o job para rodar com schedule
+O enviroment consiste em colocar em qual dataset irá rodar
+Dentro dele cria-se um job
+Nele poderá ser colocado quais comandos devem rodar e o schedule
